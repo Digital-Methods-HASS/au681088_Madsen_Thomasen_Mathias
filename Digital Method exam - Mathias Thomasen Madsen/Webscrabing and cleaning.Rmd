@@ -1,0 +1,147 @@
+---
+title: "webscrabing and Cleaning"
+author: "Mathias Thomasen Madsen"
+date: "01/10/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+In this script, i will web scrape data on police killings by Killed By Police. Thereafter i will clean the data, so it's ready for analysis. This should therefore be seen af part 1 of 2, the second being analysis.
+
+This script follows this script made by Adela Sobotkova.
+https://github.com/Digital-Methods-HASS/WebscrapingPoliceKillings
+```{r}
+library(rvest)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(janitor)
+```
+
+Web scraping
+There are 8 datasets in total. The first part is downloading the dataset from 2020, to see if we can make a function that works to collect all the datasets later. 
+
+First step is to download the dataset from the net. The URL is provided through Sobotkova's guide.
+
+```{r}
+url_html <- read_html("http://web.archive.org/web/20200502072010/https://killedbypolice.net/kbp2020")
+```
+
+Next step is to convert the raw data into a list, to thereafter unlist it
+Loading HTML as list
+```{r}
+list_table <- url_html %>% 
+ html_nodes("table") %>%
+ html_table()
+```
+
+Now, we unlist the list to make it into a dataframe 
+```{r}
+dataframe_table <- do.call(cbind,unlist(list_table, recursive = FALSE)) 
+```
+
+Next step is to combine the commands into a function, so we can collect all dataframes 2013-2020
+
+The function will first collect the dataset through the URL, then it will convert it into a list, and lastly unlist it into a dataframe. So the function follows the chunks written above
+```{r}
+scrape_police_kill <- function(website){
+	url <- read_html(website)
+	annual_table <- url %>% 
+ 			html_nodes("table") %>%
+ 			html_table() 
+  annual_table <- do.call(cbind,unlist(annual_table, recursive = FALSE))
+ }
+
+```
+
+We need to make an empty container, which is were we assemble the dataset. The NULL marks the container as empty
+```{r}
+mastertable=NULL
+```
+We now apply the function to all datasets 2013-2020 from the URL binding them into the empty conatiner we just created. 
+Line 70 shows we chose the datasets 2013-2020. 
+Line 72 we removed the year from the URL
+Line 73 binds the years to the URL so we get all the datasets when we run the function
+line 75 combines all the downloaded datasets from the URL in one big dataset in the mastertable container we created
+
+```{r}
+for (year in 2013:2020){ 
+	print(year)
+	url <- "http://web.archive.org/web/20200502072010/https://killedbypolice.net/kbp"   
+	website <- paste0(url,year)  
+	annual_table <- scrape_police_kill(website) 
+	mastertable <- rbind(mastertable, annual_table) 
+	}
+```
+We use the commands Head() and tail() to make sure we got all the datasets. Head shows the start of the mastertable dataset and tail the end
+```{r}
+head(mastertable)
+```
+```{r}
+tail(mastertable)
+```
+We've now web scraped the data. Next step is cleaning the data. 
+
+
+Data cleaning
+```{r}
+library(tidyverse)
+library(lubridate)
+```
+First thing is to convert the dataset into a tibble dataset. Tibble will make sure that R doesn't convert variables, values or names without us telling it to do so. Hence it's a good function use when cleaning and altering data. https://tibble.tidyverse.org/
+
+(part of Sobotkova's script)
+```{r}
+mastertable<-as_tibble(mastertable)
+```
+
+One of the things we need to do to make the dataset easier to work with is converting the columns into the right class. Therefore we have to convert the age column into numeric value. Also we need to rename the * column. Since this column shows in which way the victims were killed, we will name it method. 
+
+We will change the age columns class with the mutate() function. As.numeric converts the assigned into numeric value, hence combined it will mutate the assigned (here Age) into numeric value. Rename is the function for renaming a column.
+
+```{r}
+data <- mastertable %>% 
+  mutate(Age = as.numeric(Age)) %>% 
+  rename(Method="*")
+    
+    
+```
+The read text shows that R has assigned NA values to the places there were empty cells in the Age column. 
+
+Here we check if the Age column is now numeric. 
+```{r}
+class(data$Age)
+```
+One of the important issues on datasets argued in 
+Karl W. Broman & Kara H. Woo (2018) Data Organization in Spreadsheets, The American Statistician, 72:1, 2-10, DOI: 10.1080/00031305.2017.1375989
+is that the dataset is consistent. If we look at the mastertable, we will see, that the years 2013 and 2014 have the dates written differntly than the years 2015-2020. Therefore we have to convert the dates of 2013 and 2014 to match the rest. This is also essential for making analysis later.
+
+The grepl is used to find patterns in a vector. In this case, we ask it to select Dates of the years 2013 and 2014 through the entire dataset. With the mutate() function we ask the grepl to mutate the dates from the selected into another dateformat that matches the rest of the dataset. We name the new dataset, data. 
+https://statisticsglobe.com/grep-grepl-r-function-example
+```{r}
+data <- data %>%
+	mutate(Date =
+			case_when(
+				grepl("201[34]", Date) ~ mdy(Date),
+				!grepl("201[34]",Date) ~ ymd(Date)),
+					Year = year(Date))
+```
+The article 
+Karl W. Broman & Kara H. Woo (2018) Data Organization in Spreadsheets, The American Statistician, 72:1, 2-10, DOI: 10.1080/00031305.2017.1375989
+States that there shouldn't be any empty cells in a dataset. With the chunk written below we could add NA's to all the empty cells. There is just no reason to do so since we would create more work for our selves later, removing them again. The chunk was found here.
+https://statisticsglobe.com/replace-blank-by-na-in-r
+
+SHOULD NOT BE RUN
+```{r}
+data[data==""]<-NA
+```
+
+The data has now been Web scraped and cleaned. I created a folder named Data in the directory were i am gonna store the dataset
+
+```{r}
+write_csv(data,"police_killings.csv")
+```
+
+The dataset should be in the directory folder. Move it to the "Data" folder.

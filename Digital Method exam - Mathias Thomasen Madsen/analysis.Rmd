@@ -1,0 +1,209 @@
+---
+title: "analysis"
+author: "Mathias Thomasen Madsen"
+date: "01/10/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+In this script i am gonna analyze the data provided in the prior script. This should be regarded as part 2 of 2, the first being Web scraping and cleaning. I created this second file to protect the original data from corruption should anything unwanted happen.
+
+```{r}
+library(tidyverse)
+```
+
+Before we can analyse the data, we have to import the data from windows to rstudios. 
+
+Now i import the dataset from the Data folder. 
+```{r}
+data<-read.csv("Data/police_killings.csv")
+```
+
+
+To be able to work with the datasheet i need to remove all the NA's in the Age column.I used this youtube videoer to find that the function na.omit() could help
+https://www.google.com/search?q=remove+na+from+column&sxsrf=AOaemvLeFO1zKhl2aColc8VHcD5hjJWsfw%3A1641070175863&ei=X77QYdvhM8eXxc8PhZ--gAc&ved=0ahUKEwibjYjntpH1AhXHS_EDHYWPD3AQ4dUDCA8&uact=5&oq=remove+na+from+column&gs_lcp=Cgdnd3Mtd2l6EAMyBAgjECcyBQgAEMsBMgUIABDLATIFCAAQywEyBQgAEMsBMgUIABDLATIGCAAQFhAeMgYIABAWEB4yBggAEBYQHjIGCAAQFhAeOgcIABBHELADSgQIQRgASgQIRhgAUOUXWMQhYLEjaANwAngAgAFyiAHrBJIBAzEuNZgBAKABAcgBCMABAQ&sclient=gws-wiz#kpvalbx=_Z77QYdqANtKVxc8P6qaPoA418
+
+```{r}
+data_no_na<-data %>% 
+  na.omit(Age) 
+  
+```
+
+na.omit() removes all NA's from the datasheet, but since there were only added NA's to the Age column, those were removed. therefore you can see the variables have shrinked from 5430 to 5181. I first tried out with a datasheet were i had added NA's to all empty cells, but using na.omit() with that datasheet would significantly shrink the variables, so i decided to do what I've shown here. This happened because na.omit() removes all rowes containing NA's
+
+I want to calculate the percentage of how each race is represented in the datasheet.
+https://stackoverflow.com/questions/42379751/how-do-i-find-the-percentage-of-something-in-r/42379897
+
+```{r}
+library(dplyr)
+```
+
+```{r}
+data %>% 
+  group_by(Race) %>% 
+  summarise(percent=100*n()/nrow(data))  
+```
+It did not calculate the percentage of W (whites). The 12.83% isn't applied to any letter. This is because these are all the empty cells, so those should therefore be seen as NA's. 
+
+Using these numbers, we can calculate how big a percentage of the killed were white.
+```{r}
+100-12.83609576-1.60220994-23.18600368-15.76427256-0.05524862-0.44198895-0.01841621-1.38121547-0.88397790-0.01841621				
+```
+So, 43.81% were white, 23.19 were black, 15.76 were hispanic and 0.44 were latino. It can be assumed that potentially latinos and hispanics are defined as the same catagory. Thereby we now know the races most representated
+
+
+I'm mostly interested in working with the larger Groups, which are whites, blacks and hispanics. Therefore i calculated the percentage these races represents. I also did this to make sure i calculated the right percentage whites represents. The filter by race line is from Sobotkova's script
+```{r}
+data %>% 
+  filter(Race %in% c("B", "W", "H")) %>% 
+  group_by(Race) %>% 
+  summarise(percent=100*n()/nrow(data))
+
+```
+Luckily we get the same results as before. 
+
+I want to make a graph that shows this coherence
+```{r}
+library(ggplot2)
+library(ggridges)
+```
+
+I used Sobotkova's script to understand how to make a column graph, but added the variables i wanted for the analysis.
+```{r}
+data_no_na %>% 
+  filter(Race %in% c("W", "B", "H")) %>% 
+  group_by(Year,Race) %>% 
+  tally() %>% 
+  mutate(perc = n / sum(n) * 100)  %>% 
+  ggplot(aes(Race,
+             perc,
+             fill = Race)) +
+  geom_col() +
+  facet_grid(Race~Year) +
+  theme_minimal(base_size = 10) +
+  xlab("Race") +
+  ylab("Percentage killed by race")
+```
+It is interesting that Hispanics arent representated in 2013 and 2014. My thought is that Latinos and Hispanics are used as synonyms. Therefore i made another similar graph showing Latinos instead of Hispanics 
+
+
+```{r}
+data_no_na %>% 
+  filter(Race %in% c("W", "B", "L")) %>% 
+  group_by(Year,Race) %>% 
+  tally() %>% 
+  mutate(perc = n / sum(n) * 100)  %>% 
+  ggplot(aes(Race,
+             perc,
+             fill = Race)) +
+  geom_col() +
+  facet_grid(Race~Year) +
+  theme_minimal(base_size = 10) +
+  xlab("Race") +
+  ylab("Percentage killed by race")
+```
+My thesis seems to prove correct Therefore i should apply hispanics to the latino race class to get a better graph.
+
+
+I couldn't find a solution for changing the variable "H" to "L", so I'm downloading the data_no_na to a new excel sheet so i can change it through openrefine and load it back into Rstudio.
+
+```{r}
+write_csv(data,"policekillings2.csv")
+```
+
+I used openrefine to change the variable "H" to "L". I used the facet/text facet. There i edited the "H" to "L". Move the new dataset to the "Data" folder in the directory
+
+```{r}
+data_ny<-read.csv("data/policekillings2.csv")
+```
+Whenever i try and edit "H" to "L" in the spreadsheet either manually in excel or through openrefine, it corrupts the rest of the data 2015-2020. So it doesn't seem posible to make a tidier spreadsheet this way. I tried vaious ways to fix this, but to no avail.  
+
+
+I calculated the combined percentage of Latino and Hispanic
+```{r}
+data %>% 
+  filter(Race %in% c("L", "H")) %>% 
+  group_by(Race) %>% 
+  summarise(percent=100*n()/nrow(data)) 
+  
+```
+
+The amount of latinos killed in percentage are therefore 16.21%
+```{r}
+15.764273+0.441989
+```
+
+Because i couldn't combine "L" and "H" i created a new graph showing the same as before, but looking at the graph all "H" represents "L"
+```{r}
+data_no_na %>% 
+  filter(Race %in% c("W", "B", "L","H")) %>% 
+  group_by(Year,Race) %>% 
+  tally() %>% 
+  mutate(perc = n / sum(n) * 100)  %>% 
+  ggplot(aes(Race,
+             perc,
+             fill = Race)) +
+  geom_col() +
+  facet_grid(Race~Year) +
+  theme_minimal(base_size = 10) +
+  xlab("Race, H=L") +
+  ylab("Percentage of killed by race")
+```
+Here "H" represents "L" too
+
+
+
+I want to compare this to how this correlates to the population of the United States. 
+
+I collected data from the United States Census Bureau
+https://www.census.gov/quickfacts/fact/table/US/PST045221
+
+It says that 
+White = 60.1%
+Black=13.4%
+Latino=18.5%
+
+The numbers often vary because there is a gray zone to what race people feel like that they relate to. 
+
+I will now calculate how the percentage killed based on race correlates to the population. I used the percentages calculated earlier showing how the races where represented in percentage.
+
+White
+```{r}
+60.1-43.8
+```
+```{r}
+(16.3/43.8)*100
+```
+The white population is under represented by 37.2% in the police killings
+
+
+Black
+```{r}
+23.2-13.4
+```
+```{r}
+(9.8/13.4)*100
+```
+The black population is over represented by 73.1%
+
+Latino 
+```{r}
+18.5-16.2
+```
+```{r}
+(2.3/18.5)*100
+```
+The latino population is under represented by 12.4%
+
+
+Using the data you can make a lot of another analysis as Adela Sobotkova and Ben Marwick did
+
+
+
+
+
+
+
